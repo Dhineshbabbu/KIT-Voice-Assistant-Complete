@@ -1,80 +1,220 @@
+
 import json
+from datetime import date
+
 from langchain_groq import ChatGroq
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
+
 from app.config import settings
 from app.college import CollegeClient
 
-SYSTEM = """You are the concise, helpful voice assistant for Knotopian Institute of Technology (KIT).
-Use API tools for live data. Never invent dates, attendance, grades, timetable, request status,
-placement eligibility, seats, or approvals. Never claim a write action succeeded unless the API
-confirmed it. Public visitors can only use public information. Student and teacher data is limited
-to the currently authenticated user and their authorized role. Never ask for another person's
-credentials or retrieve another student's private records. For requests that change data, explain
-that the user must review and confirm the action in the app's confirmation panel. If a question
-cannot be answered by the API, say so clearly. Keep spoken answers natural and brief."""
+
+SYSTEM = """
+You are the voice assistant for Knotopian Institute of Technology (KIT).
+
+CORE RULES:
+1. Always use tools for live KIT information.
+2. Never invent attendance, marks, grades, dates, events,
+   timetable, placement eligibility, or request status.
+3. Only access the currently authenticated user's data.
+4. Public visitors must never access student or teacher data.
+5. Students must never use teacher tools.
+6. Teachers must never use student-specific tools.
+7. Never claim that an action succeeded unless the KIT API confirms it.
+8. All write actions require explicit user confirmation.
+9. Explain when information is unavailable from the KIT API.
+10. Keep spoken answers concise and natural.
+
+TOOL USAGE:
+- Use attendance_sessions for detailed attendance questions.
+- Use calendar tools for holidays and examination dates.
+- Use class_attendance for teacher class attendance.
+- Check placement drives before preparing a registration.
+- Retrieve a request before preparing its cancellation.
+- Retrieve pending teacher requests before preparing approval/rejection.
+- Do not assume that a student is eligible for a placement drive.
+- Do not execute write operations directly.
+"""
+
+
+def encode(data):
+    return json.dumps(data, ensure_ascii=False, default=str)
+
+
+def normalize_list(data, *keys):
+    if isinstance(data, list):
+        return data
+
+    if isinstance(data, dict):
+        for key in keys:
+            value = data.get(key)
+            if isinstance(value, list):
+                return value
+
+    return []
+
 
 def build_agent(context):
-    client = CollegeClient(context.get("college_token"))
+    token = context.get("college_token")
     role = context.get("role", "public")
-    authenticated = bool(context.get("college_token"))
+    authenticated = bool(token)
+
+    client = CollegeClient(token)
+    public_client = CollegeClient()
+
     tools = []
+
+    # --------------------------------------------------
+    # PUBLIC TOOLS
+    # --------------------------------------------------
 
     @tool
     async def college_profile() -> str:
-        """Fetch the official KIT profile, contact information and description."""
-        return json.dumps(await CollegeClient().college(), ensure_ascii=False)
+        """Get official KIT college profile and contact information."""
+        return encode(await public_client.college())
 
     @tool
     async def list_courses() -> str:
-        """Fetch admission courses, fees, eligibility and available seats."""
-        return json.dumps(await CollegeClient().courses(), ensure_ascii=False)
+        """Get admission courses, fees, eligibility and seat information."""
+        return encode(await public_client.courses())
 
     @tool
     async def current_college_date() -> str:
-        """Fetch KIT's current date and weekday."""
-        return json.dumps(await CollegeClient().today(), ensure_ascii=False)
+        """Get KIT's current date and weekday."""
+        return encode(await public_client.today())
 
     @tool
-    async def list_calendar_events(from_date: str = "", to_date: str = "") -> str:
-        """Fetch holidays, exams and calendar events. Dates use YYYY-MM-DD; leave blank for API defaults."""
-        return json.dumps(await client.calendar(from_date or None, to_date or None), ensure_ascii=False)
+    async def list_calendar_events(
+        from_date: str = "",
+        to_date: str = ""
+    ) -> str:
+        """Get holidays, examinations and college calendar events.
+        Dates should use YYYY-MM-DD.
+        """
+        return encode(
+            await public_client.calendar(
+                from_date or None,
+                to_date or None
+            )
+        )
 
     @tool
     async def list_placement_drives() -> str:
-        """Fetch current placement drives, eligibility, deadlines and seats."""
-        return json.dumps(await CollegeClient().placement_drives(), ensure_ascii=False)
+        """Get available placement drives and their eligibility criteria."""
+        return encode(await public_client.placement_drives())
 
-    tools += [college_profile, list_courses, current_college_date, list_placement_drives]
+    @tool
+    async def list_college_documents() -> str:
+        """List official KIT documents available through the college API."""
+        return encode(await public_client.documents())
+
+    tools.extend([
+        college_profile,
+        list_courses,
+        current_college_date,
+        list_calendar_events,
+        list_placement_drives,
+        list_college_documents,
+    ])
+
+    # --------------------------------------------------
+    # PUBLIC ADMISSION APPLICATION
+    # --------------------------------------------------
+
+    if role == "public":
+
+        @tool
+        async def prepare_admission_application(
+            full_name: str,
+            phone: str,
+            email: str,
+            course_code: str,
+            twelfth_percent: float
+        ) -> str:
+            """
+            Prepare an admission application.
+            Never submit directly. Ask the user to review and confirm.
+            """
+            payload = {
+                "full_name": full_name,
+                "phone": phone,
+                "email": email,
+                "course_code": course_code,
+                "twelfth_percent": twelfth_percent
+            }
+
+            return encode({
+                "action": "prepare_confirmation",
+                "action_type": "admission_application",
+                "payload": payload,
+                "message": "Admission application prepared. Review and confirm before submission."
+            })
+
+        tools.append(prepare_admission_application)
+
+    # --------------------------------------------------
+    # STUDENT TOOLS
+    # --------------------------------------------------
 
     if authenticated and role == "student":
+
         @tool
         async def my_profile_and_academics() -> str:
-            """Fetch the current student's profile and academic summary."""
-            a, b = await client.me(), await client.academics()
-            return json.dumps({"profile":a,"academics":b}, ensure_ascii=False)
+            """Get the current student's profile and academic summary."""
+            profile, academics = await client.me(), await client.academics()
+
+            return encode({
+                "profile": profile,
+                "academics": academics
+            })
 
         @tool
         async def my_attendance() -> str:
-            """Fetch attendance summary for the currently logged-in student."""
-            return json.dumps(await client.attendance(), ensure_ascii=False)
+            """Get the current student's overall attendance summary."""
+            return encode(await client.attendance())
+
+        @tool
+        async def my_attendance_sessions(
+            subject: str = "",
+            from_date: str = "",
+            to_date: str = ""
+        ) -> str:
+            """Get detailed attendance sessions, optionally filtered by subject and dates."""
+            return encode(
+                await client.attendance_sessions(
+                    subject or None,
+                    from_date or None,
+                    to_date or None
+                )
+            )
 
         @tool
         async def my_subjects_and_timetable() -> str:
-            """Fetch the student's subjects and weekly timetable."""
-            a, b = await client.subjects(), await client.timetable()
-            return json.dumps({"subjects":a,"timetable":b}, ensure_ascii=False)
+            """Get registered subjects and weekly timetable."""
+            subjects = await client.subjects()
+            timetable = await client.timetable()
+
+            return encode({
+                "subjects": subjects,
+                "timetable": timetable
+            })
 
         @tool
         async def my_leave_and_od_requests() -> str:
-            """Fetch the current student's leave and on-duty request history."""
-            return json.dumps(await client.student_requests(), ensure_ascii=False)
+            """Get the current student's leave and on-duty request history."""
+            return encode(await client.student_requests())
+
+        @tool
+        async def my_request_details(request_id: int) -> str:
+            """Get details of one of the current student's requests."""
+            return encode(await client.request_detail(request_id))
 
         @tool
         async def my_placement_registrations() -> str:
-            """Fetch placement drives the current student has registered for."""
-            return json.dumps(await client.my_placements(), ensure_ascii=False)
-        
+            """Get placement drives registered by the current student."""
+            return encode(await client.my_placements())
+
         @tool
         async def prepare_leave_or_od_request(
             request_type: str,
@@ -85,19 +225,29 @@ def build_agent(context):
             half_day: bool = False
         ) -> str:
             """
-            Prepare a student leave or on-duty request.
-
-            request_type must be personal_leave, medical_leave or on_duty.
-            Dates must use YYYY-MM-DD.
-            event_name is mandatory for on_duty.
-            Prepare the request for user confirmation; do not submit it directly.
+            Prepare a personal leave, medical leave or on-duty request.
+            Do not submit directly. Ask for confirmation.
             """
-
-            if request_type not in ["personal_leave", "medical_leave", "on_duty"]:
+            if request_type not in {
+                "personal_leave",
+                "medical_leave",
+                "on_duty"
+            }:
                 return "Invalid request type."
 
-            if request_type == "on_duty" and not event_name:
-                return "Please provide the event name."
+            if not reason.strip():
+                return "A reason is required."
+
+            if request_type == "on_duty" and not event_name.strip():
+                return "An event name is required for on-duty requests."
+
+            try:
+                start = date.fromisoformat(from_date)
+                end = date.fromisoformat(to_date)
+                if end < start:
+                    return "The end date cannot be before the start date."
+            except ValueError:
+                return "Please provide dates in YYYY-MM-DD format."
 
             payload = {
                 "type": request_type,
@@ -108,145 +258,222 @@ def build_agent(context):
                 "event_name": event_name or None
             }
 
-            return json.dumps({
+            return encode({
                 "action": "prepare_confirmation",
-                "endpoint": "POST /v1/me/requests",
+                "action_type": "leave_od_request",
                 "payload": payload,
-                "message": "Request prepared. Please review and confirm in the application."
+                "message": "Review the leave/OD request and confirm before submission."
             })
-        
+
+        @tool
+        async def prepare_cancel_request(request_id: int) -> str:
+            """Retrieve a student's request and prepare its cancellation for confirmation."""
+            request = await client.request_detail(request_id)
+
+            return encode({
+                "action": "prepare_confirmation",
+                "action_type": "cancel_student_request",
+                "payload": {"id": request_id},
+                "request_details": request,
+                "message": "Review this request and confirm cancellation."
+            })
+
         @tool
         async def prepare_placement_registration(drive_id: int) -> str:
             """
-            Prepare registration for a placement drive.
-
-            First verify the drive exists and check the student's
-            eligibility. Prepare the registration for user confirmation.
-            Do not register directly.
+            Check that a placement drive exists and prepare registration.
+            Do not claim eligibility unless the API provides sufficient information.
+            Ask for confirmation before registration.
             """
-
-            drives = await client.placement_drives()
-
-            if isinstance(drives, dict):
-                drives = drives.get("items", drives.get("drives", []))
+            drives = normalize_list(
+                await client.placement_drives(),
+                "items",
+                "drives"
+            )
 
             drive = next(
-                (d for d in drives if int(d["id"]) == drive_id),
+                (
+                    item for item in drives
+                    if str(item.get("id")) == str(drive_id)
+                ),
                 None
             )
 
             if not drive:
                 return f"Placement drive {drive_id} was not found."
 
-            return json.dumps({
+            return encode({
                 "action": "prepare_confirmation",
-                "endpoint": f"POST /v1/placements/drives/{drive_id}/register",
-                "payload": {},
+                "action_type": "placement_register",
+                "payload": {"id": drive_id},
                 "drive": drive,
-                "message": "Review the placement drive and confirm registration in the application."
-            }, ensure_ascii=False)
+                "message": "Review the placement drive and confirm registration."
+            })
 
-        tools += [my_profile_and_academics, my_attendance, my_subjects_and_timetable,
-                  my_leave_and_od_requests, my_placement_registrations,list_calendar_events,
-                  prepare_leave_or_od_request,prepare_placement_registration]
+        tools.extend([
+            my_profile_and_academics,
+            my_attendance,
+            my_attendance_sessions,
+            my_subjects_and_timetable,
+            my_leave_and_od_requests,
+            my_request_details,
+            my_placement_registrations,
+            prepare_leave_or_od_request,
+            prepare_cancel_request,
+            prepare_placement_registration,
+        ])
 
-        
+    # --------------------------------------------------
+    # TEACHER TOOLS
+    # --------------------------------------------------
 
     if authenticated and role == "teacher":
-        @tool
-        async def my_teaching_classes() -> str:
-            """Fetch classes assigned to the logged-in teacher."""
-            return json.dumps(await client.teacher_classes(), ensure_ascii=False)
 
         @tool
-        async def student_requests_for_review(status: str = "pending") -> str:
-            """Fetch student leave/OD requests for the teacher. Optional status filter."""
-            return json.dumps(await client.teacher_requests(status or None), ensure_ascii=False)
+        async def my_teaching_classes() -> str:
+            """Get all classes assigned to the authenticated teacher."""
+            return encode(await client.teacher_classes())
+
+        @tool
+        async def class_attendance(class_id: str) -> str:
+            """Get attendance records for a class assigned to this teacher."""
+            return encode(await client.class_attendance(class_id))
+
+        @tool
+        async def student_requests_for_review(
+            status: str = "pending"
+        ) -> str:
+            """Get student leave and OD requests for teacher review."""
+            return encode(
+                await client.teacher_requests(status or None)
+            )
 
         @tool
         async def prepare_approve_request(
             request_id: int,
             comment: str = ""
         ) -> str:
-            """
-            Prepare approval of a student leave or OD request.
-            Retrieve the request first and prepare it for confirmation.
-            Never approve without explicit teacher confirmation.
-            """
-
-            requests = await client.teacher_requests("pending")
-
-            if isinstance(requests, dict):
-                requests = requests.get("items", requests.get("requests", []))
+            """Retrieve a pending request and prepare approval for teacher confirmation."""
+            requests = normalize_list(
+                await client.teacher_requests("pending"),
+                "items",
+                "requests"
+            )
 
             request = next(
-                (r for r in requests if int(r["id"]) == request_id),
+                (
+                    item for item in requests
+                    if str(item.get("id")) == str(request_id)
+                ),
                 None
             )
 
             if not request:
                 return f"Pending request {request_id} was not found."
 
-            return json.dumps({
+            return encode({
                 "action": "prepare_confirmation",
-                "endpoint": f"/v1/teacher/requests/{request_id}/approve",
-                "method": "POST",
-                "payload": {"comment": comment} if comment else {},
+                "action_type": "teacher_approve",
+                "payload": {
+                    "id": request_id,
+                    "comment": comment
+                },
                 "request_details": request,
-                "message": "Approval prepared. Awaiting teacher confirmation."
-            }, ensure_ascii=False)
+                "message": "Review the request and confirm approval."
+            })
 
         @tool
         async def prepare_reject_request(
             request_id: int,
             reason: str
         ) -> str:
-            """
-            Prepare rejection of a student leave or on-duty request.
-            A rejection reason is mandatory.
-            Ask for teacher confirmation before submitting.
-            """
-
+            """Retrieve a pending request and prepare rejection for confirmation."""
             if not reason.strip():
                 return "A rejection reason is required."
 
-            requests = await client.teacher_requests("pending")
-
-            if isinstance(requests, dict):
-                requests = requests.get("items", requests.get("requests", []))
+            requests = normalize_list(
+                await client.teacher_requests("pending"),
+                "items",
+                "requests"
+            )
 
             request = next(
-                (r for r in requests if int(r["id"]) == request_id),
+                (
+                    item for item in requests
+                    if str(item.get("id")) == str(request_id)
+                ),
                 None
             )
 
             if not request:
                 return f"Pending request {request_id} was not found."
 
-            return json.dumps({
+            return encode({
                 "action": "prepare_confirmation",
-                "method": "POST",
-                "endpoint": f"/v1/teacher/requests/{request_id}/reject",
+                "action_type": "teacher_reject",
                 "payload": {
+                    "id": request_id,
                     "reason": reason
                 },
-                "request_details": request
-            }, ensure_ascii=False)
+                "request_details": request,
+                "message": "Review the request and confirm rejection."
+            })
 
-        tools += [my_teaching_classes, student_requests_for_review, list_calendar_events, prepare_approve_request, prepare_reject_request]
+        tools.extend([
+            my_teaching_classes,
+            class_attendance,
+            student_requests_for_review,
+            prepare_approve_request,
+            prepare_reject_request,
+        ])
 
     if not settings.groq_api_key:
         raise RuntimeError("GROQ_API_KEY is not configured.")
-    llm = ChatGroq(api_key=settings.groq_api_key, model=settings.groq_model, temperature=0)
-    return create_react_agent(llm, tools, prompt=SYSTEM)
+
+    llm = ChatGroq(
+        api_key=settings.groq_api_key,
+        model=settings.groq_model,
+        temperature=0
+    )
+
+    return create_react_agent(
+        llm,
+        tools,
+        prompt=SYSTEM
+    )
+
 
 async def run_agent(message, context):
     agent = build_agent(context)
+
     prior = context.get("history", [])
-    msgs = [{"role": m["role"], "content": m["content"]} for m in prior[-12:] if m["role"] in ("user","assistant")]
-    msgs.append({"role":"user","content":message})
-    result = await agent.ainvoke({"messages":msgs})
+
+    messages = [
+        {
+            "role": item["role"],
+            "content": item["content"]
+        }
+        for item in prior[-12:]
+        if item.get("role") in ("user", "assistant")
+    ]
+
+    messages.append({
+        "role": "user",
+        "content": message
+    })
+
+    result = await agent.ainvoke({
+        "messages": messages
+    })
+
     content = result["messages"][-1].content
+
     if isinstance(content, list):
-        content = " ".join(str(x.get("text","")) for x in content if isinstance(x,dict))
+        content = " ".join(
+            str(item.get("text", ""))
+            for item in content
+            if isinstance(item, dict)
+        )
+
     return str(content)
+

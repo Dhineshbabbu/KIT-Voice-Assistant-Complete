@@ -240,6 +240,33 @@ async def confirm_action(body: ActionConfirm,request: Request):
     if not pending: raise HTTPException(404,"Confirmation expired or action not found.")
     kind,payload=pending["action_type"],pending["payload"]
     u=current_user(request)
+
+    required_roles = {
+        "admission_application": "public",
+        "leave_od_request": "student",
+        "cancel_student_request": "student",
+        "placement_register": "student",
+        "teacher_approve": "teacher",
+        "teacher_reject": "teacher",
+    }
+
+    expected_role = required_roles.get(kind)
+
+    if expected_role is None:
+        raise HTTPException(400, "Unknown action.")
+
+    if expected_role == "public":
+        if u:
+            raise HTTPException(403, "Admission action is for public visitors.")
+        client = CollegeClient()
+    else:
+        if not u:
+            raise HTTPException(401, "Please sign in again.")
+
+        if u["role"] != expected_role:
+            raise HTTPException(403, "Your account role cannot perform this action.")
+
+        client = CollegeClient(u["college_token"])
     if kind=="admission_application":
         client=CollegeClient()
     else:
