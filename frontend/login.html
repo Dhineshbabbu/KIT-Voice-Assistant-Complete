@@ -1,0 +1,93 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#123f49">
+  <title>KIT | Secure Login</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="/">
+    <span class="brand-mark"><i></i><b></b></span>
+    <span class="brand-copy">
+      <strong>KIT</strong>
+      <small>Knotopian Institute of Technology</small>
+    </span>
+  </a>
+  <nav>
+    <a class="nav-link" href="/">Assistant</a>
+  </nav>
+</header>
+
+<main class="page-shell narrow">
+
+  <section class="hero">
+    <div class="eyebrow">
+      <span class="eyebrow-dot"></span>
+      STUDENT / TEACHER PORTAL
+    </div>
+
+    <h1>Sign in to KIT<span class="accent">.</span></h1>
+
+    <p>
+      Access your academic profile, attendance,
+      timetable and college services.
+    </p>
+  </section>
+
+  <section class="login-form">
+    <div>
+      <span class="panel-kicker">SECURE ACCESS</span>
+      <h2>Welcome back</h2>
+      <p class="muted">Enter your hackathon sandbox credentials.</p>
+    </div>
+
+    <form id="loginForm">
+      <label>
+        Login ID
+        <input
+          id="loginId"
+          type="text"
+          placeholder="Enter your login ID"
+          required
+          autocomplete="username">
+      </label>
+
+      <label>
+        Password
+        <input
+          id="password"
+          type="password"
+          placeholder="Enter your password"
+          required
+          autocomplete="current-password">
+      </label>
+
+      <button class="button button-primary" type="submit">
+        Sign in <span>↗</span>
+      </button>
+
+      <p id="error" class="error" role="alert"></p>
+    </form>
+
+    <div class="login-note">
+      <span>🔒</span>
+      Your login session is protected.
+    </div>
+  </section>
+
+  <footer class="page-footer">
+    Knotopian Institute of Technology
+    <span>·</span>
+    Secure student and teacher portal
+  </footer>
+
+</main>
+
+<script src="/static/login.js"></script>
+</body>
+</html>

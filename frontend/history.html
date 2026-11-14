@@ -1,0 +1,79 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#123f49">
+  <title>KIT | Conversation History</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <a class="brand" href="/">
+    <span class="brand-mark"><i></i><b></b></span>
+    <span class="brand-copy">
+      <strong>KIT</strong>
+      <small>Knotopian Institute of Technology</small>
+    </span>
+  </a>
+
+  <nav>
+    <a class="nav-link" href="/">Assistant</a>
+    <a class="nav-link active" href="/history">History</a>
+  </nav>
+</header>
+
+<main class="page-shell">
+
+  <section class="hero">
+    <div class="eyebrow">
+      <span class="eyebrow-dot"></span>
+      YOUR ACTIVITY
+    </div>
+
+    <h1>Your conversations<span class="accent">.</span></h1>
+
+    <p>
+      Review your previous interactions with the KIT Voice Assistant.
+    </p>
+  </section>
+
+  <section class="chat-panel">
+    <div class="panel-topline">
+      <div>
+        <span class="panel-kicker">PERSONAL HISTORY</span>
+        <h2>Conversation records</h2>
+      </div>
+
+      <div class="online-indicator">
+        <span></span>
+        Session history
+      </div>
+    </div>
+
+    <div id="history" class="messages">
+      <div class="bubble assistant">
+        Loading your conversation history...
+      </div>
+    </div>
+  </section>
+
+  <div class="quick">
+    <a href="/" class="button button-primary">
+      Back to Assistant ↗
+    </a>
+  </div>
+
+  <footer class="page-footer">
+    Knotopian Institute of Technology
+    <span>·</span>
+    Conversation history
+  </footer>
+
+</main>
+
+<script src="/static/history.js"></script>
+</body>
+</html>

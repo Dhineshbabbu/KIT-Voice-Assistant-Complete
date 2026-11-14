@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#123f49">
+  <title>KIT Voice Assistant</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="KIT home">
+      <span class="brand-mark" aria-hidden="true"><i></i><b></b></span>
+      <span class="brand-copy">
+        <strong>KIT</strong>
+        <small>Knotopian Institute of Technology</small>
+      </span>
+    </a>
+    <nav aria-label="Main navigation">
+      <a class="nav-link active" href="/">Assistant</a>
+      <a class="nav-link" href="/history">History</a>
+      <a class="nav-link" href="/login" id="loginLink">Login</a>
+      <button id="logout" class="button button-outline hidden" type="button">Logout</button>
+    </nav>
+  </header>
+
+  <main class="page-shell">
+    <section class="hero">
+      <div class="eyebrow"><span class="eyebrow-dot"></span> VOICE · COLLEGE SERVICES</div>
+      <h1>Your KIT assistant<span class="accent">.</span></h1>
+      <p>Ask about courses, admissions, attendance, timetable, calendar, placements and student services.</p>
+      <div id="identity" class="identity-pill"><span class="status-dot"></span> Public visitor mode</div>
+    </section>
+
+    <section class="chat-panel" aria-label="Assistant conversation">
+      <div class="panel-topline">
+        <div>
+          <span class="panel-kicker">KIT ASSISTANT</span>
+          <h2>Conversation</h2>
+        </div>
+        <div class="online-indicator"><span></span> Ready to help</div>
+      </div>
+
+      <div id="messages" class="messages" aria-live="polite" aria-relevant="additions text">
+        <div class="message-row assistant-row">
+          <div class="avatar assistant-avatar">K</div>
+          <div class="bubble assistant">
+            Hello! I can help with KIT information. Sign in to access your student or teacher services.
+          </div>
+        </div>
+      </div>
+
+      <div id="processingStatus" class="processing-status hidden" role="status">
+        <span class="typing-indicator"><i></i><i></i><i></i></span>
+        <span id="processingText">Working on your request…</span>
+      </div>
+
+      <form id="chatForm" autocomplete="off">
+        <label class="sr-only" for="message">Message the KIT assistant</label>
+        <input id="message" placeholder="Ask KIT anything…" autocomplete="off" required>
+        <button id="sendButton" class="button button-primary" type="submit">
+          <span>Send</span><span aria-hidden="true">↗</span>
+        </button>
+      </form>
+
+      <div class="toolbar">
+        <div class="voice-controls">
+          <button id="record" class="button button-secondary" type="button">🎙 <span>Speak</span></button>
+          <button id="stop" class="button button-stop" type="button" disabled>Stop recording</button>
+        </div>
+        <span id="voiceStatus" class="voice-status" aria-live="polite"></span>
+      </div>
+
+      <div id="actionPanel" class="action-panel hidden"></div>
+    </section>
+
+    <section class="quick-section">
+      <div class="quick-heading">
+        <h2>Quick questions</h2>
+        <span>Choose a topic to get started</span>
+      </div>
+      <div class="quick">
+        <button type="button" data-q="Tell me about KIT"><span class="quick-icon">⌂</span>College profile</button>
+        <button type="button" data-q="List available courses and fees"><span class="quick-icon">▤</span>Courses &amp; fees</button>
+        <button type="button" data-q="What is the academic calendar?"><span class="quick-icon">▦</span>Calendar</button>
+        <button type="button" data-q="Show current placement drives"><span class="quick-icon">↗</span>Placements</button>
+      </div>
+    </section>
+    <footer class="page-footer">Knotopian Institute of Technology <span>·</span> Voice-enabled college services</footer>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
+
